@@ -1,0 +1,63 @@
+version: v2beta1
+name: minimal-app
+
+vars:
+  APP_PORT:
+    question: Which port should the app listen on?
+    default: "8080"
+  ENVIRONMENT:
+    source: env
+    default: "development"
+
+pipelines:
+  dev:
+    run: |-
+      run_dependencies --all
+      create_deployments --all
+      start_dev app
+  
+  deploy:
+    run: |-
+      run_dependencies --all
+      build_images --all -t $(git describe --always)
+      create_deployments --all
+
+images:
+  app:
+    image: my-registry/minimal-app
+    dockerfile: ./Dockerfile
+
+deployments:
+  app:
+    helm:
+      chart:
+        name: component-chart
+        repo: https://charts.devspace.sh
+      values:
+        containers:
+        - image: my-registry/minimal-app
+          env:
+          - name: PORT
+            value: "${APP_PORT}"
+          - name: ENVIRONMENT
+            value: "${ENVIRONMENT}"
+        service:
+          ports:
+          - port: ${APP_PORT}
+
+dev:
+  app:
+    imageSelector: my-registry/minimal-app
+    devImage: golang:1.21-alpine
+    ports:
+    - port: "${APP_PORT}:${APP_PORT}"
+    open:
+    - url: http://localhost:${APP_PORT}
+    terminal:
+      command: sh
+    sync:
+    - path: ./
+      excludePaths:
+      - .git/
+      - .devspace/
+      - '*.log'

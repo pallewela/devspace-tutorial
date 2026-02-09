@@ -1,0 +1,20 @@
+version: v2beta1
+name: api
+
+images:
+  api:
+    image: my-registry/api
+    dockerfile: ./Dockerfile
+
+deployments:
+  api:
+    helm:
+      chart:
+        name: component-chart
+        repo: https://charts.devspace.sh
+      values:
+        containers:
+        - image: my-registry/api
+        service:
+          ports:
+          - port: 8080

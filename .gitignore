@@ -1,0 +1,30 @@
+# DevSpace
+.devspace/
+
+# Git
+.git/
+
+# Go
+*.log
+*.out
+*.test
+vendor/
+
+# Build artifacts
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log

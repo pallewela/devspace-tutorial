@@ -1,0 +1,20 @@
+version: v2beta1
+name: frontend
+
+images:
+  frontend:
+    image: my-registry/frontend
+    dockerfile: ./Dockerfile
+
+deployments:
+  frontend:
+    helm:
+      chart:
+        name: component-chart
+        repo: https://charts.devspace.sh
+      values:
+        containers:
+        - image: my-registry/frontend
+        service:
+          ports:
+          - port: 3000

@@ -1,0 +1,19 @@
+version: v2beta1
+name: multi-service
+
+dependencies:
+  api:
+    path: ./api
+  frontend:
+    path: ./frontend
+
+pipelines:
+  deploy:
+    run: |-
+      run_dependencies --all
+      echo "All services deployed!"
+  
+  dev:
+    run: |-
+      run_dependencies --all --pipeline dev
+      echo "All services running in dev mode!"
