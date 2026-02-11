@@ -12,6 +12,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	http.HandleFunc("/api", handler)
-	fmt.Println("API listening on :8080")
-	http.ListenAndServe(":8080", nil)
+	fmt.Println("API listening on :9090")
+	http.ListenAndServe(":9090", nil)
 }

@@ -4,14 +4,17 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 )
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	env := os.Getenv("ENVIRONMENT")
 	if env == "" {
-		env = "development"
+		env = "$development$"
 	}
-	fmt.Fprintf(w, "Hello from DevSpace! Environment: %s\n", env)
+	t := time.Now()
+	fmt.Printf("handling request at %s \n", t)
+    fmt.Fprintf(w, "Hello from DevSpace! Environment: %s, Time: %s", env, t)
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -22,7 +25,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "9090"
 	}
 
 	http.HandleFunc("/", handler)

@@ -7,14 +7,15 @@ import (
 )
 
 func handler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Frontend handler called")
 	// Call the API
-	resp, err := http.Get("http://api:8080/api")
+	resp, err := http.Get("http://api:9090/api")
 	if err != nil {
 		fmt.Fprintf(w, "Error calling API: %v", err)
 		return
 	}
 	defer resp.Body.Close()
-	
+
 	body, _ := io.ReadAll(resp.Body)
 	fmt.Fprintf(w, "Frontend calling API: %s", body)
 }

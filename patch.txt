@@ -1,0 +1,231 @@
+diff --git a/samples/minimal-app/Dockerfile b/samples/minimal-app/Dockerfile
+index b1a7b59..bae1525 100644
+--- a/samples/minimal-app/Dockerfile
++++ b/samples/minimal-app/Dockerfile
+@@ -1,4 +1,6 @@
+-FROM golang:1.21-alpine AS builder
++ARG GO_VERSION=1.24
++
++FROM golang:${GO_VERSION}-alpine AS builder
+ WORKDIR /app
+ COPY go.* ./
+ RUN go mod download
+@@ -8,5 +10,5 @@ RUN go build -o /app/server
+ FROM alpine:latest
+ WORKDIR /app
+ COPY --from=builder /app/server /app/server
+-EXPOSE 8080
++EXPOSE 9090
+ CMD ["/app/server"]
+diff --git a/samples/minimal-app/devspace.yaml b/samples/minimal-app/devspace.yaml
+index b72c6f8..34b0f47 100644
+--- a/samples/minimal-app/devspace.yaml
++++ b/samples/minimal-app/devspace.yaml
+@@ -1,63 +1,91 @@
+ version: v2beta1
+-name: minimal-app
+-
+-vars:
+-  APP_PORT:
+-    question: Which port should the app listen on?
+-    default: "8080"
+-  ENVIRONMENT:
+-    source: env
+-    default: "development"
++name: devspace-tutorialgit
+ 
++# This is a list of `pipelines` that DevSpace can execute (you can define your own)
+ pipelines:
++  # This is the pipeline for the main command: `devspace dev` (or `devspace run-pipeline dev`)
+   dev:
+     run: |-
+-      run_dependencies --all
+-      create_deployments --all
+-      start_dev app
+-  
++      run_dependencies --all       # 1. Deploy any projects this project needs (see "dependencies")
++      ensure_pull_secrets --all    # 2. Ensure pull secrets
++      create_deployments --all     # 3. Deploy Helm charts and manifests specfied as "deployments"
++      start_dev app                # 4. Start dev mode "app" (see "dev" section)
++  # You can run this pipeline via `devspace deploy` (or `devspace run-pipeline deploy`)
+   deploy:
+     run: |-
+-      run_dependencies --all
+-      build_images --all -t $(git describe --always)
+-      create_deployments --all
++      run_dependencies --all                            # 1. Deploy any projects this project needs (see "dependencies")
++      ensure_pull_secrets --all                         # 2. Ensure pull secrets
++      build_images --all -t $(git describe --always)    # 3. Build, tag (git commit hash) and push all images (see "images")
++      create_deployments --all                          # 4. Deploy Helm charts and manifests specfied as "deployments"
+ 
++# This is a list of `images` that DevSpace can build for this project
++# We recommend to skip image building during development (devspace dev) as much as possible
+ images:
+   app:
+-    image: my-registry/minimal-app
++    image: my-image-registry.tld/username/app
+     dockerfile: ./Dockerfile
++    buildArgs:
++      GO_VERSION: "1.22"
+ 
++# This is a list of `deployments` that DevSpace can create for this project
+ deployments:
+   app:
++    # This deployment uses `helm` but you can also define `kubectl` deployments or kustomizations
+     helm:
++      # We are deploying this project with the Helm chart you provided
+       chart:
+         name: component-chart
+         repo: https://charts.devspace.sh
++      # Under `values` we can define the values for this Helm chart used during `helm install/upgrade`
++      # You may also use `valuesFiles` to load values from files, e.g. valuesFiles: ["values.yaml"]
+       values:
+         containers:
+-        - image: my-registry/minimal-app
+-          env:
+-          - name: PORT
+-            value: "${APP_PORT}"
+-          - name: ENVIRONMENT
+-            value: "${ENVIRONMENT}"
++          - image: my-image-registry.tld/username/app
+         service:
+           ports:
+-          - port: ${APP_PORT}
++            - port: 9090
+ 
++# This is a list of `dev` containers that are based on the containers created by your deployments
+ dev:
+   app:
+-    imageSelector: my-registry/minimal-app
+-    devImage: golang:1.21-alpine
++    # Search for the container that runs this image
++    imageSelector: my-image-registry.tld/username/app
++    # Replace the container image with this dev-optimized image (allows to skip image building during development)
++    devImage: ghcr.io/loft-sh/devspace-containers/go:1.24-alpine
++    # Sync files between the local filesystem and the development container
++    sync:
++      - path: ./
++    # Open a terminal and use the following command to start it
++    terminal:
++      command: ./devspace_start.sh
++    # Inject a lightweight SSH server into the container (so your IDE can connect to the remote dev env)
++    ssh:
++      enabled: true
++    # Make the following commands from my local machine available inside the dev container
++    proxyCommands:
++      - command: devspace
++      - command: kubectl
++      - command: helm
++      - gitCredentials: true
++    # Forward the following ports to be able access your application via localhost
+     ports:
+-    - port: "${APP_PORT}:${APP_PORT}"
++      - port: "2345"
++      - port: "7070:9090"
++    # Open the following URLs once they return an HTTP status code other than 502 or 503
+     open:
+-    - url: http://localhost:${APP_PORT}
+-    terminal:
+-      command: sh
+-    sync:
+-    - path: ./
+-      excludePaths:
+-      - .git/
+-      - .devspace/
+-      - '*.log'
++      - url: http://localhost:7070
++
++# Use the `commands` section to define repeatable dev workflows for this project 
++commands:
++  migrate-db:
++    command: |-
++      echo 'This is a cross-platform, shared command that can be used to codify any kind of dev task.'
++      echo 'Anyone using this project can invoke it via "devspace run migrate-db"'
++
++# Define dependencies to other projects with a devspace.yaml
++# dependencies:
++#   api:
++#     git: https://...  # Git-based dependencies
++#     tag: v1.0.0
++#   ui:
++#     path: ./ui        # Path-based dependencies (for monorepos)
+diff --git a/samples/minimal-app/main.go b/samples/minimal-app/main.go
+index 5b89253..3db0a8a 100644
+--- a/samples/minimal-app/main.go
++++ b/samples/minimal-app/main.go
+@@ -4,14 +4,17 @@ import (
+ 	"fmt"
+ 	"net/http"
+ 	"os"
++	"time"
+ )
+ 
+ func handler(w http.ResponseWriter, r *http.Request) {
+ 	env := os.Getenv("ENVIRONMENT")
+ 	if env == "" {
+-		env = "development"
++		env = "$development$"
+ 	}
+-	fmt.Fprintf(w, "Hello from DevSpace! Environment: %s\n", env)
++	t := time.Now()
++	fmt.Printf("handling request at %s \n", t)
++    fmt.Fprintf(w, "Hello from DevSpace! Environment: %s, Time: %s", env, t)
+ }
+ 
+ func healthHandler(w http.ResponseWriter, r *http.Request) {
+@@ -22,7 +25,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
+ func main() {
+ 	port := os.Getenv("PORT")
+ 	if port == "" {
+-		port = "8080"
++		port = "9090"
+ 	}
+ 
+ 	http.HandleFunc("/", handler)
+diff --git a/samples/multi-service/api/Dockerfile b/samples/multi-service/api/Dockerfile
+index b1a7b59..5a23653 100644
+--- a/samples/multi-service/api/Dockerfile
++++ b/samples/multi-service/api/Dockerfile
+@@ -8,5 +8,5 @@ RUN go build -o /app/server
+ FROM alpine:latest
+ WORKDIR /app
+ COPY --from=builder /app/server /app/server
+-EXPOSE 8080
++EXPOSE 9090 
+ CMD ["/app/server"]
+diff --git a/samples/multi-service/api/devspace.yaml b/samples/multi-service/api/devspace.yaml
+index 609520c..d7645ca 100644
+--- a/samples/multi-service/api/devspace.yaml
++++ b/samples/multi-service/api/devspace.yaml
+@@ -17,4 +17,4 @@ deployments:
+         - image: my-registry/api
+         service:
+           ports:
+-          - port: 8080
++          - port: 9090
+diff --git a/samples/multi-service/api/main.go b/samples/multi-service/api/main.go
+index 7bcefa0..dfc83ac 100644
+--- a/samples/multi-service/api/main.go
++++ b/samples/multi-service/api/main.go
+@@ -12,6 +12,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
+ 
+ func main() {
+ 	http.HandleFunc("/api", handler)
+-	fmt.Println("API listening on :8080")
+-	http.ListenAndServe(":8080", nil)
++	fmt.Println("API listening on :9090")
++	http.ListenAndServe(":9090", nil)
+ }
+diff --git a/samples/multi-service/frontend/main.go b/samples/multi-service/frontend/main.go
+index 2a28750..ac2912e 100644
+--- a/samples/multi-service/frontend/main.go
++++ b/samples/multi-service/frontend/main.go
+@@ -8,7 +8,7 @@ import (
+ 
+ func handler(w http.ResponseWriter, r *http.Request) {
+ 	// Call the API
+-	resp, err := http.Get("http://api:8080/api")
++	resp, err := http.Get("http://api:9090/api")
+ 	if err != nil {
+ 		fmt.Fprintf(w, "Error calling API: %v", err)
+ 		return

@@ -8,5 +8,5 @@ RUN go build -o /app/server
 FROM alpine:latest
 WORKDIR /app
 COPY --from=builder /app/server /app/server
-EXPOSE 8080
+EXPOSE 9090 
 CMD ["/app/server"]
