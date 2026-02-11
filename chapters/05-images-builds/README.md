@@ -310,6 +310,48 @@ images:
 
 DevSpace will build the image in a Kubernetes pod using Kaniko. Slower but works anywhere.
 
+### Using Buildah
+
+[Buildah](https://buildah.io/) is a daemonless, rootless tool for building OCI images. It works without a Docker daemon and is useful in CI, restricted environments, or when you prefer a daemonless workflow.
+
+DevSpace does not have a built-in Buildah engine. Use the **custom** build to run Buildah yourself. DevSpace will call your script and pass the image name and tag via variables.
+
+**Step 1: Create a build script** (e.g. `build-with-buildah.sh` in the project root):
+
+```bash
+#!/usr/bin/env bash
+set -e
+IMAGE="$1"
+TAG="${2:-latest}"
+FULL_IMAGE="${IMAGE}:${TAG}"
+
+buildah bud -t "$FULL_IMAGE" -f "${DOCKERFILE:-./Dockerfile}" "${CONTEXT:-.}"
+buildah push "$FULL_IMAGE"
+```
+
+Make it executable: `chmod +x build-with-buildah.sh`
+
+**Step 2: Configure the image with `custom` in `devspace.yaml`:**
+
+```yaml
+images:
+  app:
+    image: ghcr.io/loft-sh/devspace-quickstart-golang
+    dockerfile: ./Dockerfile
+    context: ./
+    custom:
+      command: ./build-with-buildah.sh
+      args:
+        - "${runtime.images.app.image}"
+        - "${runtime.images.app.tag}"
+```
+
+When you run `devspace build`, DevSpace runs your script with the resolved image name and tag. The script builds with `buildah bud` and pushes with `buildah push`.
+
+**Build arguments:** To pass `buildArgs` through to Buildah, extend the script to forward them. For example, if you use `buildArgs.GO_VERSION` in `devspace.yaml`, you can pass them via environment variables or by reading DevSpace's generated build options. A simple approach is to add `--build-arg KEY=VALUE` for each arg to the `buildah bud` command in your script (Buildah uses the same `--build-arg` syntax as Docker).
+
+**Prerequisites:** Install Buildah on the machine or in the environment where you run `devspace build` (e.g. `apt install buildah` or `dnf install buildah`). Log in to your registry with `buildah login` if you push to a private registry.
+
 ### Custom Build Command
 
 For full control:
@@ -487,6 +529,7 @@ Run `devspace deploy`. Both containers run in the same pod.
 - Images are built when a pipeline calls `build_images` (e.g., in the `deploy` pipeline)
 - DevSpace automatically tags images (default: hash of context); you can customize with `-t` in pipelines
 - Tags are injected into deployments so Helm/kubectl uses the correct image
+- Build engines: Docker (default), Kaniko (in-cluster), or custom (e.g. Buildah via a script that runs `buildah bud` and `buildah push`)
 - For local clusters (minikube/kind), you typically don't push images; for remote clusters, you push to a registry and may need pull secrets
 - DevSpace builds multiple images in parallel for speed
 
