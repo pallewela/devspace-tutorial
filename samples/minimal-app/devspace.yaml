@@ -3,8 +3,8 @@ name: minimal-app
 
 vars:
   APP_PORT:
-    question: Which port should the app listen on?
-    default: "8080"
+    source: env
+    default: "9090"
   ENVIRONMENT:
     source: env
     default: "development"
@@ -48,13 +48,15 @@ deployments:
 dev:
   app:
     imageSelector: my-registry/minimal-app
-    devImage: golang:1.21-alpine
+    devImage: ghcr.io/loft-sh/devspace-containers/go:1.24-alpine
+    # devImage: docker.io/pallewela/golang-tools:1.26-alpine
     ports:
     - port: "${APP_PORT}:${APP_PORT}"
     open:
     - url: http://localhost:${APP_PORT}
     terminal:
-      command: sh
+      command: sh ./devspace_start.sh
+      #command: sh 
     sync:
     - path: ./
       excludePaths:

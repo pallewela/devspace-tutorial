@@ -1,0 +1,5 @@
+[build]
+  # Build command with debugging symbols enabled
+  cmd = "go build -gcflags='all=-N -l' -o ./tmp/main ."
+  # Run the binary with delve headless mode
+  full_bin = "dlv --listen=127.0.0.1:2345 --headless=true --api-version=2 --accept-multiclient exec ./tmp/main"
